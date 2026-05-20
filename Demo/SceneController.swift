@@ -21,6 +21,23 @@ final class SceneController: UIResponder {
         let authURL = rootURL.appendingPathComponent("/session/new")
         tabBarController.activeNavigator.route(authURL)
     }
+
+    // MARK: - Bug repro: confirm() dismissed externally
+
+    /// Simulates a push-notification deeplink: switches to the first tab and
+    /// pushes a new screen onto its navigator. Used by the "JS confirm
+    /// dismissed externally" bug repro to dismiss the presenting view
+    /// controller (and its alert) while a JS confirm() dialog is on screen.
+    private func simulateNotificationDeeplink() {
+        tabBarController.selectedIndex = 0
+        tabBarController.activeNavigator.route(rootURL.appendingPathComponent("/navigation"))
+    }
+
+    private func scheduleNotificationDeeplink() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            self?.simulateNotificationDeeplink()
+        }
+    }
 }
 
 extension SceneController: UIWindowSceneDelegate {
@@ -37,6 +54,11 @@ extension SceneController: UIWindowSceneDelegate {
 
 extension SceneController: NavigatorDelegate {
     func handle(proposal: VisitProposal, from navigator: Navigator) -> ProposalResult {
+        if proposal.url.path == "/bugs/schedule_deeplink" {
+            scheduleNotificationDeeplink()
+            return .reject
+        }
+
         switch proposal.viewController {
         case NumbersViewController.pathConfigurationIdentifier:
             return .acceptCustom(NumbersViewController(
